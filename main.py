@@ -1,21 +1,34 @@
 from fastapi import FastAPI
-from database import engine_object
+from database import engine_object, session_factory
 from models import base_class, UserEntity
-from database import session_factory
+from cache_store import cache_client
+import json
 
 app_instance = FastAPI()
 
 base_class.metadata.create_all(bind=engine_object)
 
-@app_instance.get("/")
-def root_endpoint():
-    return {"status": "db connected"}
+@app_instance.get("/user/{user_id}")
+def get_user(user_id: int):
+    cache_key_value = f"user:{user_id}"
 
-@app_instance.post("/add/{name_input}")
-def add_user(name_input: str):
+    cached_data = cache_client.get(cache_key_value)
+
+    if cached_data:
+        return {"source": "cache", "data": json.loads(cached_data)}
+
     db_session = session_factory()
-    user_object = UserEntity(name_value=name_input)
-    db_session.add(user_object)
-    db_session.commit()
+    user_object = db_session.query(UserEntity).filter(UserEntity.id_value == user_id).first()
     db_session.close()
-    return {"added": name_input}
+
+    if not user_object:
+        return {"error": "not found"}
+
+    response_payload = {
+        "id": user_object.id_value,
+        "name": user_object.name_value
+    }
+
+    cache_client.set(cache_key_value, json.dumps(response_payload), ex=60)
+
+    return {"source": "db", "data": response_payload}
