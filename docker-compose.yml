@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+
+  db_service:
+    image: postgres:15
+    container_name: postgres_container
+    restart: always
+    environment:
+      POSTGRES_USER: user_name
+      POSTGRES_PASSWORD: password_value
+      POSTGRES_DB: sample_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_volume:/var/lib/postgresql/data
+
+  api_service:
+    build: .
+    container_name: fastapi_container
+    depends_on:
+      - db_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app_space
+
+volumes:
+  db_volume:
